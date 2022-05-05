@@ -1544,7 +1544,7 @@ conf_add_server(struct conf *cf, const struct command *cmd, void *conf)
     uint8_t *p, *q, *start;
     uint8_t *pname, *addr, *port, *weight, *name, *pass;
     uint32_t k, delimlen, pnamelen, addrlen, portlen, weightlen, namelen, passlen;
-    const char *const delim = ": ::";
+    const char *const delim = "| ::";
 
     p = conf;
     a = (struct array *)(p + cmd->offset);
@@ -1558,7 +1558,7 @@ conf_add_server(struct conf *cf, const struct command *cmd, void *conf)
 
     value = array_top(&cf->arg);
 
-    /* parse "hostname:port:weight [name]:[pass]" or "/path/unix_socket:weight [name]:[pass]" from the end */
+    /* parse "hostname:port:weight [name]|[pass]" or "/path/unix_socket:weight [name]|[pass]" from the end */
     p = value->data + value->len - 1;
     start = value->data;
     addr = NULL;
@@ -1579,7 +1579,7 @@ conf_add_server(struct conf *cf, const struct command *cmd, void *conf)
         if (q == NULL) {
             if (k == 0 || k == 1) {
                 /*
-                 * name and pass are optional "hostname:port:weight [name]:[pass]" format string is
+                 * name and pass are optional "hostname:port:weight [name]|[pass]" format string is
                  * optional
                  */
                 continue;
@@ -1618,9 +1618,9 @@ conf_add_server(struct conf *cf, const struct command *cmd, void *conf)
 
         p = q - 1;
     }
-
+    log_debug(LOG_VVERB, "keys found %d", k);
     if (k != delimlen) {
-        return "has an invalid \"hostname:port:weight [name]:[pass]\"or \"/path/unix_socket:weight [name]:[pass]\" format string";
+        return "has an invalid \"hostname:port:weight [name]|[pass]\"or \"/path/unix_socket:weight [name]|[pass]\" format string";
     }
 
     pname = value->data;
@@ -1636,9 +1636,9 @@ conf_add_server(struct conf *cf, const struct command *cmd, void *conf)
 
     field->weight = nc_atoi(weight, weightlen);
     if (field->weight < 0) {
-        return "has an invalid weight in \"hostname:port:weight [name]:[pass]\" format string";
+        return "has an invalid weight in \"hostname:port:weight [name]|[pass]\" format string";
     } else if (field->weight == 0) {
-        return "has a zero weight in \"hostname:port:weight [name]:[pass]\" format string";
+        return "has a zero weight in \"hostname:port:weight [name]|[pass]\" format string";
     }
 
     if (value->data[0] != '/') {
@@ -1671,6 +1671,12 @@ conf_add_server(struct conf *cf, const struct command *cmd, void *conf)
     status = string_copy(&field->addrstr, addr, addrlen);
     if (status != NC_OK) {
         return CONF_ERROR;
+    }
+
+    if (pass == NULL)
+    {
+        pass = name;
+        passlen = namelen;
     }
 
     status = string_copy(&field->pass, pass, passlen);

@@ -18,10 +18,10 @@ beta:
   timeout: 400
   redis: true
   servers:
-   - 127.0.0.1:6380:1 server1:authpass1
-   - 127.0.0.1:6381:1 server2:authpass2
-   - 127.0.0.1:6382:1 server3:authpass3
-   - 127.0.0.1:6383:1 server4:authpass4
+   - 127.0.0.1:6380:1 server1|authpass1
+   - 127.0.0.1:6381:1 server2|authpass2
+   - 127.0.0.1:6382:1 server3|authpass3
+   - 127.0.0.1:6383:1 server4|authpass4
 
 gamma:
   listen: 127.0.0.1:22123
