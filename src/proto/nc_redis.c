@@ -3087,12 +3087,13 @@ redis_post_coalesce(struct msg *r)
         NOT_REACHED();
     }
 }
-
+/* here need to addd redis auth according server */
 static rstatus_t
 redis_handle_auth_req(struct msg *req, struct msg *rsp)
 {
     struct conn *conn = (struct conn *)rsp->owner;
     const struct server_pool *pool;
+    const struct server *server;
     const struct keypos *kpos;
     const uint8_t *key;
     uint32_t keylen;
@@ -3101,6 +3102,7 @@ redis_handle_auth_req(struct msg *req, struct msg *rsp)
     ASSERT(conn->client && !conn->proxy);
 
     pool = (const struct server_pool *)conn->owner;
+    server = (const struct server *)conn->owner;
 
     if (!pool->require_auth) {
         /*
@@ -3113,8 +3115,10 @@ redis_handle_auth_req(struct msg *req, struct msg *rsp)
     kpos = array_get(req->keys, 0);
     key = kpos->start;
     keylen = (uint32_t)(kpos->end - kpos->start);
+    
     valid = (keylen == pool->redis_auth.len) &&
-            (memcmp(pool->redis_auth.data, key, keylen) == 0);
+            (memcmp(pool->redis_auth.data, key, keylen) == 0);        
+
     if (valid) {
         conn->authenticated = 1;
         return msg_append(rsp, rsp_ok.data, rsp_ok.len);
@@ -3130,18 +3134,20 @@ redis_handle_auth_req(struct msg *req, struct msg *rsp)
     conn->authenticated = 0;
     return msg_append(rsp, rsp_invalid_password.data, rsp_invalid_password.len);
 }
-
+/* here need to addd redis auth according server */
 rstatus_t
 redis_add_auth(struct context *ctx, struct conn *c_conn, struct conn *s_conn)
 {
     rstatus_t status;
     struct msg *msg;
     struct server_pool *pool;
+    struct server *server;
 
     ASSERT(!s_conn->client && !s_conn->proxy);
     ASSERT(!conn_authenticated(s_conn));
 
     pool = c_conn->owner;
+    server = s_conn->owner;
 
     msg = msg_get(c_conn, true, c_conn->redis);
     if (msg == NULL) {
@@ -3150,7 +3156,8 @@ redis_add_auth(struct context *ctx, struct conn *c_conn, struct conn *s_conn)
     }
 
     status = msg_prepend_format(msg, "*2\r\n$4\r\nAUTH\r\n$%d\r\n%s\r\n",
-                                pool->redis_auth.len, pool->redis_auth.data);
+                                server->pass.len, server->pass.data);
+
     if (status != NC_OK) {
         msg_put(msg);
         return status;

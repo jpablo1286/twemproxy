@@ -708,8 +708,8 @@ server_pool_server(struct server_pool *pool, const uint8_t *key, uint32_t keylen
     idx = server_pool_idx(pool, key, keylen);
     server = array_get(&pool->server, idx);
 
-    log_debug(LOG_VERB, "key '%.*s' on dist %d maps to server '%.*s'", keylen,
-              key, pool->dist_type, server->pname.len, server->pname.data);
+    log_debug(LOG_VERB, "key '%.*s' on dist %d maps to server '%.*s', with pass: '%.*s'", keylen,
+              key, pool->dist_type, server->pname.len, server->pname.data, server->pass.len, server->pass.data);
 
     return server;
 }

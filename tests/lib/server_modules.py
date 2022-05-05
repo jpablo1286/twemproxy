@@ -289,7 +289,7 @@ class NutCracker(Base):
         return self._info_dict()
 
     def _gen_conf_section(self, servers):
-        template = '    - $host:$port:1 $server_name'
+        template = '    - $host:$port:1 $server_name:$pass'
         cfg = '\n'.join([TT(template, server.args) for server in servers])
         return cfg
 

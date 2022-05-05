@@ -121,6 +121,7 @@ conf_server_init(struct conf_server *cs)
 {
     string_init(&cs->pname);
     string_init(&cs->name);
+    string_init(&cs->pass);
     string_init(&cs->addrstr);
     cs->port = 0;
     cs->weight = 0;
@@ -137,6 +138,7 @@ conf_server_deinit(struct conf_server *cs)
 {
     string_deinit(&cs->pname);
     string_deinit(&cs->name);
+    string_deinit(&cs->pass);
     string_deinit(&cs->addrstr);
     cs->valid = 0;
     log_debug(LOG_VVERB, "deinit conf server %p", cs);
@@ -159,6 +161,7 @@ conf_server_each_transform(void *elem, void *data)
 
     s->pname = cs->pname;
     s->name = cs->name;
+    s->pass = cs->pass;
     s->addrstr = cs->addrstr;
     s->port = (uint16_t)cs->port;
     s->weight = (uint32_t)cs->weight;
@@ -171,8 +174,8 @@ conf_server_each_transform(void *elem, void *data)
     s->next_retry = 0LL;
     s->failure_count = 0;
 
-    log_debug(LOG_VERB, "transform to server %"PRIu32" '%.*s'",
-              s->idx, s->pname.len, s->pname.data);
+    log_debug(LOG_VERB, "transform to server %"PRIu32" '%.*s' with pass '%.*s'",
+              s->idx, s->pname.len, s->pname.data, s->pass.len, s->pass.data);
 
     return NC_OK;
 }
@@ -1539,9 +1542,9 @@ conf_add_server(struct conf *cf, const struct command *cmd, void *conf)
     struct string *value;
     struct conf_server *field;
     uint8_t *p, *q, *start;
-    uint8_t *pname, *addr, *port, *weight, *name;
-    uint32_t k, delimlen, pnamelen, addrlen, portlen, weightlen, namelen;
-    const char *const delim = " ::";
+    uint8_t *pname, *addr, *port, *weight, *name, *pass;
+    uint32_t k, delimlen, pnamelen, addrlen, portlen, weightlen, namelen, passlen;
+    const char *const delim = ": ::";
 
     p = conf;
     a = (struct array *)(p + cmd->offset);
@@ -1555,7 +1558,7 @@ conf_add_server(struct conf *cf, const struct command *cmd, void *conf)
 
     value = array_top(&cf->arg);
 
-    /* parse "hostname:port:weight [name]" or "/path/unix_socket:weight [name]" from the end */
+    /* parse "hostname:port:weight [name]:[pass]" or "/path/unix_socket:weight [name]:[pass]" from the end */
     p = value->data + value->len - 1;
     start = value->data;
     addr = NULL;
@@ -1566,15 +1569,17 @@ conf_add_server(struct conf *cf, const struct command *cmd, void *conf)
     portlen = 0;
     name = NULL;
     namelen = 0;
+    pass = NULL;
+    passlen = 0;
 
-    delimlen = value->data[0] == '/' ? 2 : 3;
+    delimlen = value->data[0] == '/' ? 3 : 4;
 
     for (k = 0; k < sizeof(delim); k++) {
         q = nc_strrchr(p, start, delim[k]);
         if (q == NULL) {
-            if (k == 0) {
+            if (k == 0 || k == 1) {
                 /*
-                 * name in "hostname:port:weight [name]" format string is
+                 * name and pass are optional "hostname:port:weight [name]:[pass]" format string is
                  * optional
                  */
                 continue;
@@ -1584,18 +1589,27 @@ conf_add_server(struct conf *cf, const struct command *cmd, void *conf)
 
         switch (k) {
         case 0:
-            name = q + 1;
-            namelen = (uint32_t)(p - name + 1);
+            pass = q + 1;
+            passlen = (uint32_t)(p - pass + 1);
+            log_debug(LOG_VVERB, "adding pass for server %s", pass);
             break;
 
         case 1:
-            weight = q + 1;
-            weightlen = (uint32_t)(p - weight + 1);
+            name = q + 1;
+            namelen = (uint32_t)(p - name + 1);
+            log_debug(LOG_VVERB, "adding name for server %s", name);
             break;
 
         case 2:
+            weight = q + 1;
+            weightlen = (uint32_t)(p - weight + 1);
+            log_debug(LOG_VVERB, "adding weight for server %s", weight);
+            break;
+
+        case 3:
             port = q + 1;
             portlen = (uint32_t)(p - port + 1);
+            log_debug(LOG_VVERB, "adding port for server %s", port);
             break;
 
         default:
@@ -1606,11 +1620,11 @@ conf_add_server(struct conf *cf, const struct command *cmd, void *conf)
     }
 
     if (k != delimlen) {
-        return "has an invalid \"hostname:port:weight [name]\"or \"/path/unix_socket:weight [name]\" format string";
+        return "has an invalid \"hostname:port:weight [name]:[pass]\"or \"/path/unix_socket:weight [name]:[pass]\" format string";
     }
 
     pname = value->data;
-    pnamelen = namelen > 0 ? value->len - (namelen + 1) : value->len;
+    pnamelen = passlen > 0 && namelen > 0 ? value->len - (passlen + namelen + 1) : value->len;
     status = string_copy(&field->pname, pname, pnamelen);
     if (status != NC_OK) {
         array_pop(a);
@@ -1622,9 +1636,9 @@ conf_add_server(struct conf *cf, const struct command *cmd, void *conf)
 
     field->weight = nc_atoi(weight, weightlen);
     if (field->weight < 0) {
-        return "has an invalid weight in \"hostname:port:weight [name]\" format string";
+        return "has an invalid weight in \"hostname:port:weight [name]:[pass]\" format string";
     } else if (field->weight == 0) {
-        return "has a zero weight in \"hostname:port:weight [name]\" format string";
+        return "has a zero weight in \"hostname:port:weight [name]:[pass]\" format string";
     }
 
     if (value->data[0] != '/') {
@@ -1658,6 +1672,14 @@ conf_add_server(struct conf *cf, const struct command *cmd, void *conf)
     if (status != NC_OK) {
         return CONF_ERROR;
     }
+
+    status = string_copy(&field->pass, pass, passlen);
+    if (status != NC_OK) {
+        return CONF_ERROR;
+    }
+    
+
+    log_debug(LOG_VVERB, "checking pass '%.*s'",field->pass.len, field->pass.data);
 
     /*
      * The address resolution of the backend server hostname is lazy.

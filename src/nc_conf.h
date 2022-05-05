@@ -68,6 +68,7 @@ struct conf_listen {
 struct conf_server {
     struct string   pname;      /* server: as "hostname:port:weight" */
     struct string   name;       /* hostname:port or [name] */
+    struct string   pass;       /* pass for redis */
     struct string   addrstr;    /* hostname */
     int             port;       /* port */
     int             weight;     /* weight */
