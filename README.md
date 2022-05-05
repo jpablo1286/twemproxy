@@ -1,4 +1,4 @@
-# This is a Fork for supports independient auth in each Backend Redis Server
+# This is a Fork for support independient auth in each Backend Redis Server
 # twemproxy (nutcracker) [![Build Status](https://github.com/twitter/twemproxy/actions/workflows/main.yml/badge.svg?branch=master)](https://github.com/twitter/twemproxy/actions/workflows/main.yml?query=branch%3Amaster)
 
 **twemproxy** (pronounced "two-em-proxy"), aka **nutcracker** is a fast and lightweight proxy for [memcached](http://www.memcached.org/) and [redis](http://redis.io/) protocol. It was built primarily to reduce the number of connections to the caching servers on the backend. This, together with protocol pipelining and sharding enables you to horizontally scale your distributed caching architecture.
@@ -119,7 +119,7 @@ Twemproxy can be configured through a YAML file specified by the -c or --conf-fi
 + **auto_eject_hosts**: A boolean value that controls if server should be ejected temporarily when it fails consecutively server_failure_limit times. See [liveness recommendations](notes/recommendation.md#liveness) for information. Defaults to false.
 + **server_retry_timeout**: The timeout value in msec to wait for before retrying on a temporarily ejected server, when auto_eject_hosts is set to true. Defaults to 30000 msec.
 + **server_failure_limit**: The number of consecutive failures on a server that would lead to it being temporarily ejected when auto_eject_hosts is set to true. Defaults to 2.
-+ **servers**: A list of server address, port and weight (name:port:weight or ip:port:weight) for this server pool. **NOTE**: This fork supports `hostname:port:weight name:password` format for specify independent authentication in backend redis server.
++ **servers**: A list of server address, port and weight (name:port:weight or ip:port:weight) for this server pool. **NOTE**: This fork supports `hostname:port:weight name|password` format for specify independent authentication in backend redis server.
 
 
 For example, the configuration file in [conf/nutcracker.yml](conf/nutcracker.yml), also shown below, configures 5 server pools with names - _alpha_, _beta_, _gamma_, _delta_ and omega. Clients that intend to send requests to one of the 10 servers in pool delta connect to port 22124 on 127.0.0.1. Clients that intend to send request to one of 2 servers in pool omega connect to unix path /tmp/gamma. Requests sent to pool alpha and omega have no timeout and might require timeout functionality to be implemented on the client side. On the other hand, requests sent to pool beta, gamma and delta timeout after 400 msec, 400 msec and 100 msec respectively when no response is received from the server. Of the 5 server pools, only pools alpha, gamma and delta are configured to use server ejection and hence are resilient to server failures. All the 5 server pools use ketama consistent hashing for key distribution with the key hasher for pools alpha, beta, gamma and delta set to fnv1a_64 while that for pool omega set to hsieh. Also only pool beta uses [nodes names](notes/recommendation.md#node-names-for-consistent-hashing) for consistent hashing, while pool alpha, gamma, delta and omega use 'host:port:weight' for consistent hashing. Finally, only pool alpha and beta can speak the redis protocol, while pool gamma, delta and omega speak memcached protocol.
@@ -144,10 +144,10 @@ For example, the configuration file in [conf/nutcracker.yml](conf/nutcracker.yml
       timeout: 400
       redis: true
       servers:
-       - 127.0.0.1:6380:1 server1:authpass1
-       - 127.0.0.1:6381:1 server2:authpass2
-       - 127.0.0.1:6382:1 server3:authpass3
-       - 127.0.0.1:6383:1 server4:authpass4
+       - 127.0.0.1:6380:1 server1|authpass1
+       - 127.0.0.1:6381:1 server2|authpass2
+       - 127.0.0.1:6382:1 server3|authpass3
+       - 127.0.0.1:6383:1 server4|authpass4
 
     gamma:
       listen: 127.0.0.1:22123
